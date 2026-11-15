@@ -1,20 +1,28 @@
 // crisp-owl-96 — dip ladder bot for CBBTC/USDC, 1-minute bars.
 //
-// Idea in plain words: keep a 30-bar simple moving average as a fair-value
+// Idea in plain words: keep a short simple moving average as a fair-value
 // anchor. When price slips meaningfully under that anchor we do not go
 // all-in at once; we buy a first slice, and only add another slice if the
-// dip deepens by the same step again from the previous slice's price.
+// dip deepens by a further step from the previous slice's price.
 // The position is closed as a whole once price recovers back above the
 // anchor (or a small profit over average cost is reached), and a hard
 // emergency stop cuts the whole position if it sinks too far under cost.
+//
+// Tuning note (v2, after the first local grade lost money): the original
+// 30-bar anchor with a -0.6% first dip bought far too often into a tape
+// that kept sliding, and the -3.5% stop let those losers run. The anchor
+// is now faster (15 bars), the first dip must be a full -1.0% before any
+// money moves, and the emergency stop is tighter at -1.5% under cost.
+// The ladder shape itself (25% slices, max 3, +0.6% add-on steps,
+// recovery / take-profit exits) is unchanged.
 
 import { runBars } from './vendor/makefun-bars.ts';
 
 const TICKER = 'CBBTC';
 
 // --- ladder tuning -------------------------------------------------------
-const ANCHOR_LEN = 30; // bars in the simple moving average
-const FIRST_DIP = 0.006; // first entry: close <= anchor * (1 - 0.6%)
+const ANCHOR_LEN = 15; // bars in the simple moving average
+const FIRST_DIP = 0.01; // first entry: close <= anchor * (1 - 1.0%)
 const NEXT_DIP = 0.006; // each extra slice needs another -0.6% step
 const MAX_SLICES = 3; // never stack more than three slices
 const SLICE_PCT = 25n; // one slice = 25% of the remaining weight room
@@ -23,7 +31,7 @@ const RECOVER = 0.004; // exit when close >= anchor * (1 + 0.4%)
 // on raw quote units stays exact (no float rounding on money).
 const PROFIT_NUM = 1012n; // value >= 101.2% of cost  -> take profit
 const PROFIT_DEN = 1000n;
-const STOP_NUM = 965n; // value <= 96.5% of cost     -> emergency stop
+const STOP_NUM = 985n; // value <= 98.5% of cost     -> emergency stop
 const STOP_DEN = 1000n;
 const SLIP_BPS = 100;
 const MIN_BUY = 1_000_000n; // harness minimum notional: 1 USDC
